@@ -1,0 +1,312 @@
+================================================================================
+TESTGEN — CODEBASE REORGANIZATION
+Record of changes. Behaviour-preserving: no program logic was modified.
+================================================================================
+
+WHY
+---
+The tree had 25 loose files at the repo root, two competing file-extension
+conventions, ~14 files that could not compile at all, a committed macOS binary,
+and a 1509-line entry point holding three executor classes plus three test
+suites plus main(). The goal was to make each module's job obvious from its
+path, and to give the planned genetic-algorithm test-string generator a clear
+home before that work starts.
+
+Nothing was deleted. Dead files were moved to attic/, not removed.
+No `git add` or `git commit` was run — staging is left to you. Plain `mv` was
+used rather than `git mv`, so `git status` shows delete+add pairs; git detects
+these as renames by content similarity when you commit.
+
+
+================================================================================
+1. NEW DIRECTORY LAYOUT
+================================================================================
+
+  apps/                     entry point and the hand-written test suites
+    main.cc                 main() only — 1509 lines -> 214
+    executors.hh            TestMode + the 3 executor classes
+    suites/                 the 80 hand-written test strings, split per app
+      restaurant_tests.{cc,hh}   25 tests
+      library_tests.{cc,hh}      25 tests
+      ecommerce_tests.{cc,hh}    30 tests
+
+  src/
+    ast/          AST nodes and visitors (ast, astvisitor, printvisitor,
+                  clonevisitor, symvar)
+    core/         symbol tables / value environments / type maps (env, typemap)
+    atc/          Spec + test string -> Abstract Test Case
+                  (atc_generator, rewrite_globals_visitor)
+    see/          symbolic execution engine (see, solver, z3solver)
+      factories/  per-application function factories + the base class
+    http/         httpclient — live backend execution
+    tester/       ATC -> Concrete Test Case (generateCTC)
+    teststring/   GA test-string generator  <-- the module to be implemented
+    specs/        the three subject-application specifications
+
+  results/        captured test-run logs, was all_test_files/
+    restaurant/ (25)   ecommerce/ (30)   library/ (25)
+
+  scripts/        expose_script.sh
+  third_party/    vendored deps (gitignored)
+  attic/          quarantined dead code (gitignored)
+  build/          CMake output (gitignored)
+
+
+================================================================================
+2. FILES MOVED / RENAMED
+================================================================================
+
+Extension convention standardised on .cc / .hh (was mixed .cc/.hh + .cpp/.hpp).
+
+  ast.{cc,hh}                        -> src/ast/
+  astvisitor.{cc,hh}                 -> src/ast/
+  printvisitor.{cc,hh}               -> src/ast/
+  clonevisitor.{cc,hh}               -> src/ast/
+  symvar.{cc,hh}                     -> src/ast/
+  env.{cc,hh}                        -> src/core/
+  typemap.{cc,hh}                    -> src/core/
+  algo.cpp                           -> src/atc/atc_generator.cc     [RENAMED]
+  algo.hpp                           -> src/atc/atc_generator.hh     [RENAMED]
+  rewrite_globals_visitor.{cc,hh}    -> src/atc/
+  see/see.{cc,hh}                    -> src/see/
+  see/solver.{cc,hh}                 -> src/see/
+  see/z3solver.{cc,hh}               -> src/see/
+  see/functionfactory.{cc,hh}        -> src/see/factories/
+  see/restaurantfunctionfactory.*    -> src/see/factories/
+  see/ecommercefunctionfactory.*     -> src/see/factories/
+  see/libraryfunctionfactory.*       -> src/see/factories/
+  see/httpclient.{cc,hh}             -> src/http/
+  tester/tester.{cc,hh}              -> src/tester/
+  teststring_generator.{cc,hh}       -> src/teststring/
+  specs/RestaurantSpec.{cpp,hpp}     -> src/specs/RestaurantSpec.{cc,hh}
+  specs/EcommerceSpec.{cpp,hpp}      -> src/specs/EcommerceSpec.{cc,hh}
+  specs/LibrarySpec.{cpp,hpp}        -> src/specs/LibrarySpec.{cc,hh}
+  test_libapplication.cpp            -> apps/main.cc                 [+ SPLIT]
+  all_test_files/*.txt               -> results/{restaurant,ecommerce,library}/
+  includes/json.hpp                  -> third_party/include/nlohmann/json.hpp
+  "Case Study 1"                     -> ../docs/library-case-study.md
+  expoSE_Script                      -> scripts/expose_script.sh
+
+`algo` -> `atc_generator` is the only content-bearing rename. Its public surface
+is genATC / buildATCFromBlockSequence / genInit; "algo" described nothing.
+
+"Case Study 1" was NOT discarded: it is the original Library specification in
+the project's formal notation (U : (string -> string) map, endpoint signatures)
+— the design document that src/specs/LibrarySpec.cc implements. Now in docs/.
+
+Spec base names kept their PascalCase (they name a type); only the extension
+changed.
+
+
+================================================================================
+3. FILES QUARANTINED TO attic/
+================================================================================
+
+Every source file below #includes a header that does not exist anywhere in the
+repository (ast.hpp, ASTVis.hpp, PrintVisitor.hpp). None of them can compile.
+They were kept rather than deleted in case they hold ideas worth recovering.
+
+  CloneVisitor.hpp          includes ASTVis.hpp + ast.hpp — neither exists
+  cloneHelper.hpp           includes ast.hpp — does not exist
+  ast_workarounds.hpp       includes ast.hpp — does not exist
+  atc_ast.hpp               includes ASTVis.hpp — does not exist
+  ast_tests.cpp             includes PrintVisitor.hpp — does not exist
+  unit_tests/               all 3 files include ../ast.hpp / ../ASTVis.hpp
+  location.hh               Bison-generated; referenced by nothing but itself
+  ds.cpp                    a DisjointSet class — unrelated to this project
+  run.sh                    references jsCodeGenerator/, ast.hpp,
+                            library_apispec_examples/ — none exist
+  TESTSTRING_GENERATOR.md   byte-identical duplicate of the docs/ copy
+  test_libapplication       committed Mach-O arm64 binary — wrong architecture
+  .DS_Store                 macOS filesystem noise
+  package.json              pulled prettier into a C++ project
+  package-lock.json         ditto
+  final_constraints.smt2    stale solver dump
+  genctc_query.smt2         stale solver dump
+  .genctc_query.smt2.swp    stale vim swap file
+  z3_result.txt             stale solver dump
+
+Note: the live GA design doc survives at docs/TESTSTRING_GENERATOR.md — only
+the duplicate copy was quarantined.
+
+
+================================================================================
+4. INCLUDE PATHS
+================================================================================
+
+All local includes are now rooted at src/ (and apps/), which are on the include
+path. This removes the ../ climbing that was previously everywhere.
+
+  #include "../ast.hh"           ->  #include "ast/ast.hh"
+  #include "../env.hh"           ->  #include "core/env.hh"
+  #include "../symvar.hh"        ->  #include "ast/symvar.hh"
+  #include "../typemap.hh"       ->  #include "core/typemap.hh"
+  #include "algo.hpp"            ->  #include "atc/atc_generator.hh"
+  #include "functionfactory.hh"  ->  #include "see/factories/functionfactory.hh"
+  #include "httpclient.hh"       ->  #include "http/httpclient.hh"
+  #include "./see.hh"            ->  #include "see/see.hh"
+
+<nlohmann/json.hpp> and "z3++.h" were left as-is; both now resolve from
+third_party include directories supplied by CMake.
+
+Two comments made false by the move were dropped:
+  src/see/see.cc                        "// will change this to normal env.hh later"
+  src/see/factories/functionfactory.cc  "// fixed the include path"
+
+
+================================================================================
+5. SPLIT OF test_libapplication.cpp (1509 lines)
+================================================================================
+
+Pure extraction — no signature changed, no body edited, all 80 test strings
+preserved verbatim, and the commented-out call sites in main() were left
+exactly as they were.
+
+  lines   26- 416  -> apps/executors.hh   TestMode + LibraryTestExecutor +
+                                          TestExecutor + EcommerceTestExecutor
+  lines  422- 747  -> apps/suites/restaurant_tests.cc   (25 tests)
+  lines  753- 989  -> apps/suites/library_tests.cc      (25 tests)
+  lines  995-1309  -> apps/suites/ecommerce_tests.cc    (30 tests)
+  lines 1311-1510  -> apps/main.cc                      (main() only)
+
+Suite headers were generated from the definitions, so the declarations cannot
+drift from the bodies. Counts verified: 25 + 25 + 30 = 80.
+
+DEVIATION FROM PLAN: executors.hh is header-only; there is no executors.cc.
+The three executor classes were already fully inline in the class body, so
+moving the bodies out would have meant retyping ~350 lines of method
+definitions with ClassName:: prefixes — pure transcription risk for no gain.
+Inline classes in a header are idiomatic and the organisational goal (main.cc
+shrinking from 1509 to 214 lines) is fully met.
+
+These 80 sequences matter beyond tidiness: 9 are explicitly labelled [UNSAT],
+which makes the set a labelled corpus for validating the GA's fitness function
+later.
+
+
+================================================================================
+6. BUILD SYSTEM
+================================================================================
+
+Added CMakeLists.txt. The original `makefile` was left BYTE-IDENTICAL as
+requested — but be aware it is now stale: it still lists the old flat paths and
+its INCLUDES/LDFLAGS point at macOS Homebrew (/opt/homebrew). It will not build
+this tree. Use CMake:
+
+    cmake -S . -B build
+    cmake --build build -j$(nproc)
+    # -> build/testgen
+
+Warning suppressions from the makefile were carried over. Four of the original
+seven (-Wno-delete-non-abstract-non-virtual-dtor, -Wno-unqualified-std-cast-call,
+-Wno-reorder-ctor, -Wno-unused-private-field) are clang-only spellings; they are
+applied only under clang, with the g++ equivalent (-Wno-reorder) used otherwise.
+
+src/teststring/teststring_generator.cc is DELIBERATELY NOT IN THE BUILD. The
+line is present but commented out in CMakeLists.txt. Uncomment it when the GA
+work begins. (Verified: 0 TestStringGenerator symbols in the current binary.)
+
+
+================================================================================
+7. DEPENDENCIES — vendored, project-local
+================================================================================
+
+Everything lives under third_party/ and is gitignored. Nothing was installed
+system-wide (there is no passwordless sudo on this machine anyway).
+
+  third_party/z3/       Z3 5.0.0, official prebuilt x64-glibc-2.39 release.
+                        Exact match for this machine's glibc 2.39. include/ +
+                        lib/libz3.so. No compilation needed.
+                        https://github.com/Z3Prover/z3/releases/tag/z3-5.0.0
+
+  third_party/curl/     libcurl 8.5.0, built from source. The system had
+                        libcurl.so.4 at runtime but no headers and no .so link.
+                        8.5.0 chosen to match the system runtime exactly.
+                        ./configure --prefix=<repo>/third_party/curl \
+                          --with-openssl --with-zlib --disable-ldap \
+                          --disable-ldaps --disable-manual --without-libpsl \
+                          --disable-static
+                        make -j$(nproc) && make install
+
+  third_party/include/nlohmann/json.hpp
+                        The repo's own vendored copy, relocated from
+                        includes/json.hpp. Verified as the genuine 24,596-line
+                        single-header amalgamation. Four files already did
+                        #include <nlohmann/json.hpp>, and the old makefile had
+                        no -Iincludes — so that copy was never actually being
+                        read and the build silently depended on a system
+                        package. It is now wired up properly.
+
+The binary carries an RPATH to these directories, so it runs without
+LD_LIBRARY_PATH. Total footprint ~40M; the source tarballs and curl build tree
+were removed after installation.
+
+
+================================================================================
+7b. EDITOR CONFIG
+================================================================================
+
+.vscode/c_cpp_properties.json was updated: its includePath still listed the old
+includes/ , see/ , tester/ and specs/ directories (which this refactor removed),
+and it was configured for macOS clang on a Linux machine. It now points at src/,
+apps/ and the third_party include dirs, uses g++/c++17, and consumes
+build/compile_commands.json.
+
+CMakeLists.txt sets CMAKE_EXPORT_COMPILE_COMMANDS ON, so build/compile_commands.json
+is regenerated on every configure and IntelliSense/clangd stay correct without
+further hand-maintenance.
+
+.vscode/tasks.json was LEFT ALONE: it invokes C:\msys64\ucrt64\bin\gcc.exe, i.e.
+it was already broken on this machine before this refactor and guessing the
+intended replacement would be overreach. CMake supersedes it — delete or rewrite
+it when convenient.
+
+
+================================================================================
+8. VERIFICATION PERFORMED
+================================================================================
+
+  [ok] Clean build from scratch (rm -rf build) links successfully -> build/testgen
+  [ok] Only 3 compiler warnings, all pre-existing and unrelated to the move:
+         src/specs/LibrarySpec.cc:22    unused-but-set-variable 'mkNum'
+         src/tester/tester.cc:1588      sign-compare
+         src/tester/tester.cc:1602      sign-compare
+  [ok] ldd confirms libz3.so and libcurl.so.4 resolve to third_party/, not /usr
+  [ok] No file under src/ or apps/ references attic/
+  [ok] No stale ".hpp", "../" or "algo." include remains anywhere in src/ or apps/
+  [ok] File inventory reconciles: 158 before -> 164 after
+         +8 new (CMakeLists.txt, executors.hh, 3 suite .cc, 3 suite .hh)
+         -2 left the tree (json.hpp -> third_party/, Case Study 1 -> docs/)
+  [ok] All 80 test-string functions present after the split (25+25+30)
+  [ok] 0 TestStringGenerator symbols in the binary (correctly excluded)
+
+NOT verified: the program was not executed. Per instruction the success
+criterion was compilation only. Running the full pipeline needs the three
+subject backends live (restaurant :5002, ecommerce :3000, library :8080).
+
+
+================================================================================
+9. KNOWN ISSUES LEFT ALONE (deliberately out of scope)
+================================================================================
+
+- README.md is partly fiction. Its "Writing Specifications" section documents a
+  DSL — SymbolicVar, Block{.name=,.method=,.endpoint=}, Exists(), HasRole(),
+  ValidToken() — that appears NOWHERE in the codebase. Real specs are built with
+  make_unique<API>(pre, call, Response(post), "name") and FuncCall("in", ...).
+  It also lists the restaurant backend at :9000 while the code uses :5002. Its
+  "Project Structure" tree is now also out of date. Rewrite pending.
+
+- The GA generator itself is a stub. Evaluate() in
+  src/teststring/teststring_generator.cc only checks whether an API name exists
+  in the spec. Since every gene is drawn from the spec's own name list in
+  initialisation, crossover AND mutation, that check always succeeds — so
+  fitness collapses to 100 + 10*length for every individual and the search
+  degenerates to random sampling biased toward maxLen. Implementing real
+  precondition checking (per docs/GA_pseudocode lines 52-81) is the actual task.
+
+- Crossover() does not enforce minLen (only maxLen), so it can emit sequences
+  shorter than the configured minimum.
+
+- The three executor classes in apps/executors.hh are near-identical, differing
+  only in factory type and default URL. Deduplicating them is a real cleanup but
+  would have changed behaviour, so it was not done here.

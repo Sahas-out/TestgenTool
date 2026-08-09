@@ -1,23 +1,20 @@
 {
   "configurations": [
     {
-      "name": "macos-clang-x64",
+      "name": "linux-gcc-x64",
       "includePath": [
-        "${workspaceFolder}/**",
-        "${workspaceFolder}",
-        "${workspaceFolder}/includes",
-        "${workspaceFolder}/see",
-        "${workspaceFolder}/tester",
-        "${workspaceFolder}/specs"
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/apps",
+        "${workspaceFolder}/third_party/include",
+        "${workspaceFolder}/third_party/z3/include",
+        "${workspaceFolder}/third_party/curl/include"
       ],
       "defines": [],
-      "macFrameworkPath": [
-        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
-      ],
       "cStandard": "${default}",
-      "intelliSenseMode": "macos-clang-x64",
-      "compilerPath": "/usr/bin/clang",
-      "cppStandard": "${default}"
+      "cppStandard": "c++17",
+      "intelliSenseMode": "linux-gcc-x64",
+      "compilerPath": "/usr/bin/g++",
+      "compileCommands": "${workspaceFolder}/build/compile_commands.json"
     }
   ],
   "version": 4

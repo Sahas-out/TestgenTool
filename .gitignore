@@ -1,7 +1,24 @@
 ExpoSE/*
 
-*.exe 
+*.exe
 *.gch
 *.o
 *.out
 node_modules/
+
+# --- build output ---
+build/
+testgen
+
+# --- vendored dependencies (see refactor.txt; rebuild via the commands there) ---
+third_party/
+
+# --- quarantined dead code, kept locally for reference only ---
+attic/
+
+# --- editor / OS / solver scratch ---
+.DS_Store
+*.swp
+*.smt2
+z3_result.txt
+test_libapplication
