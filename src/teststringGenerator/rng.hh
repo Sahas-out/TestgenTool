@@ -15,27 +15,26 @@ using namespace std;
 
 namespace ga {
 
-class Rng
-{
+class Rng {
 public:
     explicit Rng(unsigned seed) : engine(seed) {}
 
     // Uniform in [lo, hi], inclusive at both ends.
-    int uniformInt(int lo, int hi)
-    {
+    int uniformInt(int lo, int hi) {
         uniform_int_distribution<int> dist(lo, hi);
         return dist(engine);
     }
 
     // Uniform in [0, 1).
-    double uniformReal()
-    {
+    double uniformReal() {
         uniform_real_distribution<double> dist(0.0, 1.0);
         return dist(engine);
     }
 
     // True with the given probability.
-    bool chance(double probability) { return uniformReal() < probability; }
+    bool chance(double probability) {
+        return uniformReal() < probability;
+    }
 
 private:
     mt19937 engine;

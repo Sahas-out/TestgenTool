@@ -14,15 +14,18 @@
 
 namespace ga {
 
-struct GaConfig
-{
+struct GaConfig {
     int populationSize = 50;
     int generations    = 30;  // TERMINATION: a fixed count, for now.
 
     // Length bounds on a generated sequence. maxLength sits above the typical
     // hand-written suite string (most are 2-6 blocks) and below the ~20-block
-    // alphabet of the existing specs, so coverage fitness stays a real gradient
-    // instead of saturating in the first generation.
+    // alphabet of the existing specs.
+    //
+    // Be aware this interacts with the fitness function: under pure block
+    // coverage, an 8-block sequence out of a 21-block alphabet hits the optimum
+    // by chance often enough that the GA has little to climb. Widening the
+    // bounds is what makes the search curve visible.
     int minLength = 2;
     int maxLength = 8;
 

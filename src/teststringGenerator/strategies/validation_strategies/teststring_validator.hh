@@ -14,8 +14,7 @@ namespace ga {
 // Like PopulationInitializer, this is injected separately from the GaFactory —
 // running one operator permutation against both a trivial and a real validator
 // is exactly the comparison this module is built to support.
-class TestStringValidator
-{
+class TestStringValidator {
 public:
     virtual ~TestStringValidator() = default;
 

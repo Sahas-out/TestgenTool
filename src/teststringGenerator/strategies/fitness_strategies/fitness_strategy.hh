@@ -8,8 +8,7 @@ namespace ga {
 //
 // Takes the Spec because richer fitness functions need it — coverage relative
 // to the whole spec, precondition reasoning, and so on.
-class FitnessStrategy
-{
+class FitnessStrategy {
 public:
     virtual ~FitnessStrategy() = default;
 

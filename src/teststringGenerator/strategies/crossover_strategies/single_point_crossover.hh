@@ -1,6 +1,6 @@
 #pragma once
 
-#include "teststringGenerator/strategies/crossover_strategy.hh"
+#include "teststringGenerator/strategies/crossover_strategies/crossover_strategy.hh"
 
 namespace ga {
 
@@ -15,8 +15,7 @@ namespace ga {
 //
 // Children may come out shorter or longer than either parent; GeneticGenerator
 // clamps them into the configured length bounds afterwards.
-class SinglePointCrossover : public CrossoverStrategy
-{
+class SinglePointCrossover : public CrossoverStrategy {
 public:
     pair<TestString, TestString> crossover(const TestString& parentA,
                                            const TestString& parentB,

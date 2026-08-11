@@ -1,6 +1,6 @@
 #pragma once
 
-#include "teststringGenerator/strategies/selection_strategy.hh"
+#include "teststringGenerator/strategies/selection_strategies/selection_strategy.hh"
 
 namespace ga {
 
@@ -10,8 +10,7 @@ namespace ga {
 // k controls selection pressure — k=1 is a random walk, large k crowds out
 // everything but the current best. It is an operator parameter, so it is
 // supplied by the concrete GaFactory rather than by GaConfig.
-class TournamentSelection : public SelectionStrategy
-{
+class TournamentSelection : public SelectionStrategy {
 public:
     explicit TournamentSelection(int tournamentSize);
 

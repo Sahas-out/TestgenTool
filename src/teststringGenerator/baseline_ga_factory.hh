@@ -11,17 +11,16 @@
 // Every operator parameter lives here, so a differently tuned variant of the
 // same four operators is just a different construction:
 //
-//     BaselineGaFactory{}                       // the defaults below
-//     BaselineGaFactory{0.5, 0.4, 5, 1.0}       // lazier crossover, hotter
-//                                               // mutation, more pressure
+//     BaselineGaFactory{}                   // the defaults below
+//     BaselineGaFactory{0.5, 0.4, 5, 1.0}   // lazier crossover, hotter
+//                                           // mutation, more pressure
 // ============================================================================
 
 #include "teststringGenerator/ga_factory.hh"
 
 namespace ga {
 
-class BaselineGaFactory : public GaFactory
-{
+class BaselineGaFactory : public GaFactory {
 public:
     explicit BaselineGaFactory(double crossoverProbability = 0.8,
                                double mutationProbability  = 0.2,

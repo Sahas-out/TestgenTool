@@ -1,12 +1,11 @@
-#include "teststringGenerator/strategies/random_population_initializer.hh"
+#include "teststringGenerator/strategies/population_initialization_strategies/random_population_initializer.hh"
 
 #include <stdexcept>
 
 namespace ga {
 
 RandomPopulationInitializer::RandomPopulationInitializer(int minLength, int maxLength)
-    : minLength(minLength), maxLength(maxLength)
-{
+    : minLength(minLength), maxLength(maxLength) {
     if (minLength < 1) {
         throw runtime_error("RandomPopulationInitializer: minimum length must be at least 1");
     }
@@ -17,8 +16,7 @@ RandomPopulationInitializer::RandomPopulationInitializer(int minLength, int maxL
 
 vector<TestString> RandomPopulationInitializer::initialize(const Alphabet& alphabet,
                                                            int             count,
-                                                           Rng&            rng) const
-{
+                                                           Rng&            rng) const {
     if (alphabet.empty()) {
         throw runtime_error("RandomPopulationInitializer: the spec declares no API blocks");
     }
@@ -28,7 +26,8 @@ vector<TestString> RandomPopulationInitializer::initialize(const Alphabet& alpha
     vector<TestString> sequences;
     sequences.reserve(count);
     for (int i = 0; i < count; ++i) {
-        const int  length = rng.uniformInt(minLength, maxLength);
+        const int length = rng.uniformInt(minLength, maxLength);
+
         TestString sequence;
         sequence.reserve(length);
         for (int position = 0; position < length; ++position) {

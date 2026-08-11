@@ -10,8 +10,7 @@ namespace ga {
 // Mutation and population initialisation are the only two places block names
 // are created. Both draw exclusively from the alphabet, which is what
 // guarantees every generated name resolves in genATC.
-class MutationStrategy
-{
+class MutationStrategy {
 public:
     virtual ~MutationStrategy() = default;
 

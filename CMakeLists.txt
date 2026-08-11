@@ -109,12 +109,12 @@ add_library(ga_teststring STATIC
     src/teststringGenerator/ga_types.cc
     src/teststringGenerator/genetic_generator.cc
     src/teststringGenerator/baseline_ga_factory.cc
-    src/teststringGenerator/strategies/single_point_crossover.cc
-    src/teststringGenerator/strategies/block_replacement_mutation.cc
-    src/teststringGenerator/strategies/tournament_selection.cc
-    src/teststringGenerator/strategies/block_coverage_fitness.cc
-    src/teststringGenerator/strategies/random_population_initializer.cc
-    src/teststringGenerator/strategies/always_valid_validator.cc
+    src/teststringGenerator/strategies/crossover_strategies/single_point_crossover.cc
+    src/teststringGenerator/strategies/mutation_strategies/block_replacement_mutation.cc
+    src/teststringGenerator/strategies/selection_strategies/tournament_selection.cc
+    src/teststringGenerator/strategies/fitness_strategies/block_coverage_fitness.cc
+    src/teststringGenerator/strategies/population_initialization_strategies/random_population_initializer.cc
+    src/teststringGenerator/strategies/validation_strategies/always_valid_validator.cc
 )
 
 target_include_directories(ga_teststring PUBLIC ${CMAKE_SOURCE_DIR}/src)

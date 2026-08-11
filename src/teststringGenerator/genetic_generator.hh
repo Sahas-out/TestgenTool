@@ -18,14 +18,13 @@
 #include "teststringGenerator/ga_config.hh"
 #include "teststringGenerator/ga_factory.hh"
 #include "teststringGenerator/rng.hh"
-#include "teststringGenerator/strategies/population_initializer.hh"
-#include "teststringGenerator/strategies/teststring_validator.hh"
+#include "teststringGenerator/strategies/population_initialization_strategies/population_initializer.hh"
+#include "teststringGenerator/strategies/validation_strategies/teststring_validator.hh"
 #include "teststringGenerator/teststring_generator.hh"
 
 namespace ga {
 
-class GeneticGenerator : public TestStringGenerator
-{
+class GeneticGenerator : public TestStringGenerator {
 public:
     GeneticGenerator(GaConfig                          config,
                      unique_ptr<GaFactory>             factory,
@@ -44,6 +43,35 @@ private:
     // from it.
     using Archive = map<TestString, double>;
 
+    // The four operators and their rates, pulled off the factory once per run
+    // so the factory is not consulted again inside the loop.
+    struct Operators {
+        unique_ptr<SelectionStrategy> selection;
+        unique_ptr<CrossoverStrategy> crossover;
+        unique_ptr<MutationStrategy>  mutation;
+        unique_ptr<FitnessStrategy>   fitness;
+        double                        crossoverRate = 0.0;
+        double                        mutationRate  = 0.0;
+    };
+
+    Operators buildOperators() const;
+
+    // Builds generation 0. Throws if the validator rejects so much that a full
+    // population cannot be assembled.
+    Population seedPopulation(const Spec&      spec,
+                              const Alphabet&  alphabet,
+                              const Operators& operators,
+                              Archive&         archive,
+                              GaRunStats&      stats);
+
+    // Elites plus offspring, one generation's worth.
+    Population breedNextGeneration(const Population& population,
+                                   const Spec&       spec,
+                                   const Alphabet&   alphabet,
+                                   const Operators&  operators,
+                                   Archive&          archive,
+                                   GaRunStats&       stats);
+
     // Scores a sequence, or returns the score already on file for it.
     double evaluate(const FitnessStrategy& fitness,
                     const TestString&      sequence,
@@ -59,6 +87,9 @@ private:
 
     // The fittest individuals of a population, in descending fitness order.
     Population fittest(const Population& population, int count) const;
+
+    // The archive, ranked and cut down to the best topK.
+    vector<Individual> rankArchive(const Archive& archive, int topK) const;
 
     GaConfig                          config;
     unique_ptr<GaFactory>             factory;

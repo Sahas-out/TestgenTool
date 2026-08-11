@@ -1,6 +1,6 @@
 #pragma once
 
-#include "teststringGenerator/strategies/fitness_strategy.hh"
+#include "teststringGenerator/strategies/fitness_strategies/fitness_strategy.hh"
 
 namespace ga {
 
@@ -13,8 +13,7 @@ namespace ga {
 // Note this rewards breadth only: it says nothing about whether the sequence is
 // actually executable in order. That signal comes from the validator and from
 // richer fitness functions later — this is the baseline to compare them against.
-class BlockCoverageFitness : public FitnessStrategy
-{
+class BlockCoverageFitness : public FitnessStrategy {
 public:
     explicit BlockCoverageFitness(double weight);
 

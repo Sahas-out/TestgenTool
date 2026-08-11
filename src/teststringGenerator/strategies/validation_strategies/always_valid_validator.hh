@@ -1,6 +1,6 @@
 #pragma once
 
-#include "teststringGenerator/strategies/teststring_validator.hh"
+#include "teststringGenerator/strategies/validation_strategies/teststring_validator.hh"
 
 namespace ga {
 
@@ -11,8 +11,7 @@ namespace ga {
 // simulate the abstract state: lower the sequence, replace each assert with the
 // state update it implies, and check every assume condition holds — a sequence
 // whose assume fails is not a runnable test.
-class AlwaysValidValidator : public TestStringValidator
-{
+class AlwaysValidValidator : public TestStringValidator {
 public:
     bool isValid(const TestString& sequence, const Spec& spec) const override;
 };

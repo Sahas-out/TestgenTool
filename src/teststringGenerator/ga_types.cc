@@ -2,8 +2,7 @@
 
 namespace ga {
 
-Alphabet blockNames(const Spec& spec)
-{
+Alphabet blockNames(const Spec& spec) {
     Alphabet names;
     names.reserve(spec.blocks.size());
     for (const auto& block : spec.blocks) {

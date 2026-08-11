@@ -13,8 +13,7 @@
 
 namespace ga {
 
-class TestStringGenerator
-{
+class TestStringGenerator {
 public:
     virtual ~TestStringGenerator() = default;
 

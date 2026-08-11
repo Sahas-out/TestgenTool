@@ -1,6 +1,6 @@
 #pragma once
 
-#include "teststringGenerator/strategies/mutation_strategy.hh"
+#include "teststringGenerator/strategies/mutation_strategies/mutation_strategy.hh"
 
 namespace ga {
 
@@ -9,8 +9,7 @@ namespace ga {
 //
 // Length-preserving, so it explores which blocks appear and in what order but
 // never how many — crossover is what varies length.
-class BlockReplacementMutation : public MutationStrategy
-{
+class BlockReplacementMutation : public MutationStrategy {
 public:
     void mutate(TestString& sequence, const Alphabet& alphabet, Rng& rng) const override;
 };

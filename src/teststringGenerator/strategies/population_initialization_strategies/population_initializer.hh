@@ -12,8 +12,7 @@ namespace ga {
 // Injected into GeneticGenerator separately from the GaFactory: how a run is
 // seeded is orthogonal to which crossover/mutation/selection/fitness operators
 // it uses, and the two should be swappable independently.
-class PopulationInitializer
-{
+class PopulationInitializer {
 public:
     virtual ~PopulationInitializer() = default;
 

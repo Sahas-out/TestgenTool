@@ -21,17 +21,16 @@
 
 #include <memory>
 
-#include "teststringGenerator/strategies/crossover_strategy.hh"
-#include "teststringGenerator/strategies/fitness_strategy.hh"
-#include "teststringGenerator/strategies/mutation_strategy.hh"
-#include "teststringGenerator/strategies/selection_strategy.hh"
+#include "teststringGenerator/strategies/crossover_strategies/crossover_strategy.hh"
+#include "teststringGenerator/strategies/fitness_strategies/fitness_strategy.hh"
+#include "teststringGenerator/strategies/mutation_strategies/mutation_strategy.hh"
+#include "teststringGenerator/strategies/selection_strategies/selection_strategy.hh"
 
 using namespace std;
 
 namespace ga {
 
-class GaFactory
-{
+class GaFactory {
 public:
     virtual ~GaFactory() = default;
 

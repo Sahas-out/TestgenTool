@@ -31,8 +31,7 @@ using TestString = vector<string>;
 using Alphabet = vector<string>;
 
 // One candidate solution: a sequence and the score the fitness strategy gave it.
-struct Individual
-{
+struct Individual {
     TestString sequence;
     double     fitness = 0.0;
 };
@@ -42,8 +41,7 @@ using Population = vector<Individual>;
 // Per-run instrumentation. The point of the abstract-factory design is to try
 // different operator permutations, and "which permutation converged faster" is
 // unanswerable from the returned sequences alone — hence the fitness curves.
-struct GaRunStats
-{
+struct GaRunStats {
     vector<double> bestFitnessPerGeneration;
     vector<double> meanFitnessPerGeneration;
     int distinctSequencesEvaluated = 0;
@@ -52,8 +50,7 @@ struct GaRunStats
 
 // What generate() hands back: the top K sequences with their scores, plus how
 // the run got there.
-struct GaResult
-{
+struct GaResult {
     vector<Individual> topK;  // best first
     GaRunStats         stats;
 };

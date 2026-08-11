@@ -5,10 +5,14 @@
 
 namespace ga {
 
-// How many times initialisation may ask for a fresh batch before giving up.
-// Only relevant once a real validator can reject sequences; it exists so a
-// validator that refuses everything fails loudly instead of looping forever.
-static const int MAX_INITIALIZATION_ATTEMPTS = 20;
+// How many times seeding may ask the initializer for a fresh batch before
+// giving up. Only relevant once a real validator can reject sequences; it exists
+// so a validator that refuses everything fails loudly instead of looping forever.
+static const int MAX_SEEDING_ATTEMPTS = 20;
+
+// ---------------------------------------------------------------------------
+// Construction
+// ---------------------------------------------------------------------------
 
 GeneticGenerator::GeneticGenerator(GaConfig                          config,
                                    unique_ptr<GaFactory>             factory,
@@ -18,8 +22,7 @@ GeneticGenerator::GeneticGenerator(GaConfig                          config,
       factory(std::move(factory)),
       initializer(std::move(initializer)),
       validator(std::move(validator)),
-      rng(config.seed)
-{
+      rng(config.seed) {
     if (!this->factory || !this->initializer || !this->validator) {
         throw runtime_error("GeneticGenerator: factory, initializer and validator are required");
     }
@@ -37,50 +40,11 @@ GeneticGenerator::GeneticGenerator(GaConfig                          config,
     }
 }
 
-double GeneticGenerator::evaluate(const FitnessStrategy& fitness,
-                                  const TestString&      sequence,
-                                  const Spec&            spec,
-                                  Archive&               archive) const
-{
-    const auto existing = archive.find(sequence);
-    if (existing != archive.end()) {
-        return existing->second;
-    }
+// ---------------------------------------------------------------------------
+// The run
+// ---------------------------------------------------------------------------
 
-    const double score = fitness.evaluate(sequence, spec);
-    archive.emplace(sequence, score);
-    return score;
-}
-
-void GeneticGenerator::clampLength(TestString& sequence, const Alphabet& alphabet)
-{
-    if (static_cast<int>(sequence.size()) > config.maxLength) {
-        sequence.resize(config.maxLength);
-    }
-
-    const int lastGene = static_cast<int>(alphabet.size()) - 1;
-    while (static_cast<int>(sequence.size()) < config.minLength) {
-        sequence.push_back(alphabet[rng.uniformInt(0, lastGene)]);
-    }
-}
-
-Population GeneticGenerator::fittest(const Population& population, int count) const
-{
-    Population ranked = population;
-    // Partial sort is enough: only the leading `count` need to be in order.
-    const int taken = min(count, static_cast<int>(ranked.size()));
-    partial_sort(ranked.begin(),
-                 ranked.begin() + taken,
-                 ranked.end(),
-                 [](const Individual& lhs, const Individual& rhs) {
-                     return lhs.fitness > rhs.fitness;
-                 });
-    ranked.resize(taken);
-    return ranked;
-}
-
-GaResult GeneticGenerator::generate(const Spec& spec, int topK)
-{
+GaResult GeneticGenerator::generate(const Spec& spec, int topK) {
     if (topK < 1) {
         throw runtime_error("GeneticGenerator: topK must be at least 1");
     }
@@ -93,96 +57,172 @@ GaResult GeneticGenerator::generate(const Spec& spec, int topK)
     // Restart the stream so that two runs with the same seed are identical.
     rng = Rng(config.seed);
 
-    // The factory is consulted once, here, and never again during the run.
-    const unique_ptr<SelectionStrategy> selection = factory->createSelection();
-    const unique_ptr<CrossoverStrategy> crossover = factory->createCrossover();
-    const unique_ptr<MutationStrategy>  mutation  = factory->createMutation();
-    const unique_ptr<FitnessStrategy>   fitness   = factory->createFitness();
-    const double crossoverRate = factory->crossoverRate();
-    const double mutationRate  = factory->mutationRate();
+    const Operators operators = buildOperators();
 
-    GaResult result;
-    Archive  archive;
+    GaResult   result;
+    Archive    archive;
+    Population population = seedPopulation(spec, alphabet, operators, archive, result.stats);
 
-    // --- generation 0: seed and score -------------------------------------
+    for (int generation = 0; generation < config.generations; ++generation) {
+        population = breedNextGeneration(population, spec, alphabet, operators, archive,
+                                         result.stats);
+    }
+
+    result.topK                             = rankArchive(archive, topK);
+    result.stats.distinctSequencesEvaluated = static_cast<int>(archive.size());
+    return result;
+}
+
+GeneticGenerator::Operators GeneticGenerator::buildOperators() const {
+    Operators operators;
+    operators.selection     = factory->createSelection();
+    operators.crossover     = factory->createCrossover();
+    operators.mutation      = factory->createMutation();
+    operators.fitness       = factory->createFitness();
+    operators.crossoverRate = factory->crossoverRate();
+    operators.mutationRate  = factory->mutationRate();
+    return operators;
+}
+
+Population GeneticGenerator::seedPopulation(const Spec&      spec,
+                                            const Alphabet&  alphabet,
+                                            const Operators& operators,
+                                            Archive&         archive,
+                                            GaRunStats&      stats) {
     Population population;
     population.reserve(config.populationSize);
+
+    // Ask for as many as are still missing, repeatedly, because the validator
+    // may throw some of each batch away.
     for (int attempt = 0;
-         attempt < MAX_INITIALIZATION_ATTEMPTS &&
+         attempt < MAX_SEEDING_ATTEMPTS &&
          static_cast<int>(population.size()) < config.populationSize;
          ++attempt) {
         const int missing = config.populationSize - static_cast<int>(population.size());
+
         for (TestString& sequence : initializer->initialize(alphabet, missing, rng)) {
             if (!validator->isValid(sequence, spec)) {
-                ++result.stats.rejectedByValidator;
+                ++stats.rejectedByValidator;
                 continue;
             }
-            const double score = evaluate(*fitness, sequence, spec, archive);
+            const double score = evaluate(*operators.fitness, sequence, spec, archive);
             population.push_back(Individual{std::move(sequence), score});
         }
     }
+
     if (static_cast<int>(population.size()) < config.populationSize) {
         throw runtime_error("GeneticGenerator: could not seed a full population — the validator "
                             "rejected almost everything the initializer produced");
     }
+    return population;
+}
 
-    // --- the generational loop --------------------------------------------
-    for (int generation = 0; generation < config.generations; ++generation) {
-        Population offspring = fittest(population, config.elitismCount);
-        offspring.reserve(config.populationSize);
+Population GeneticGenerator::breedNextGeneration(const Population& population,
+                                                 const Spec&       spec,
+                                                 const Alphabet&   alphabet,
+                                                 const Operators&  operators,
+                                                 Archive&          archive,
+                                                 GaRunStats&       stats) {
+    // The elites carry through untouched, which is what keeps the best-fitness
+    // curve from ever dipping.
+    Population offspring = fittest(population, config.elitismCount);
+    offspring.reserve(config.populationSize);
 
-        while (static_cast<int>(offspring.size()) < config.populationSize) {
-            const TestString& parentA = selection->select(population, rng).sequence;
-            const TestString& parentB = selection->select(population, rng).sequence;
+    while (static_cast<int>(offspring.size()) < config.populationSize) {
+        const TestString& parentA = operators.selection->select(population, rng).sequence;
+        const TestString& parentB = operators.selection->select(population, rng).sequence;
 
-            TestString childOne = parentA;
-            TestString childTwo = parentB;
-            if (rng.chance(crossoverRate)) {
-                auto children = crossover->crossover(parentA, parentB, rng);
-                childOne      = std::move(children.first);
-                childTwo      = std::move(children.second);
-            }
-
-            // Held by value: parentA/parentB reference the population, which
-            // stays alive here, but the fallback has to survive the moves below.
-            const TestString fallbacks[2] = {parentA, parentB};
-            TestString       children[2]  = {std::move(childOne), std::move(childTwo)};
-
-            for (int i = 0; i < 2 && static_cast<int>(offspring.size()) < config.populationSize;
-                 ++i) {
-                TestString& child = children[i];
-                clampLength(child, alphabet);
-                if (rng.chance(mutationRate)) {
-                    mutation->mutate(child, alphabet, rng);
-                }
-                if (!validator->isValid(child, spec)) {
-                    ++result.stats.rejectedByValidator;
-                    child = fallbacks[i];  // carry the parent through instead
-                }
-
-                const double score = evaluate(*fitness, child, spec, archive);
-                offspring.push_back(Individual{std::move(child), score});
-            }
+        // Without crossover the parents pass through as clones and only
+        // mutation varies them.
+        TestString children[2] = {parentA, parentB};
+        if (rng.chance(operators.crossoverRate)) {
+            auto crossed = operators.crossover->crossover(parentA, parentB, rng);
+            children[0]  = std::move(crossed.first);
+            children[1]  = std::move(crossed.second);
         }
 
-        population = std::move(offspring);
+        // Copies, because a rejected child falls back to its parent and the
+        // references above point into a population we are reading from.
+        const TestString fallbacks[2] = {parentA, parentB};
 
-        double best = population.front().fitness;
-        double sum  = 0.0;
-        for (const Individual& individual : population) {
-            best = max(best, individual.fitness);
-            sum += individual.fitness;
+        for (int i = 0; i < 2 && static_cast<int>(offspring.size()) < config.populationSize; ++i) {
+            TestString& child = children[i];
+
+            clampLength(child, alphabet);
+            if (rng.chance(operators.mutationRate)) {
+                operators.mutation->mutate(child, alphabet, rng);
+            }
+            if (!validator->isValid(child, spec)) {
+                ++stats.rejectedByValidator;
+                child = fallbacks[i];  // carry the parent through instead
+            }
+
+            const double score = evaluate(*operators.fitness, child, spec, archive);
+            offspring.push_back(Individual{std::move(child), score});
         }
-        result.stats.bestFitnessPerGeneration.push_back(best);
-        result.stats.meanFitnessPerGeneration.push_back(sum / population.size());
     }
 
-    // --- the top K, drawn from everything ever seen ------------------------
-    Population candidates;
+    double best = offspring.front().fitness;
+    double sum  = 0.0;
+    for (const Individual& individual : offspring) {
+        best = max(best, individual.fitness);
+        sum += individual.fitness;
+    }
+    stats.bestFitnessPerGeneration.push_back(best);
+    stats.meanFitnessPerGeneration.push_back(sum / offspring.size());
+
+    return offspring;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+double GeneticGenerator::evaluate(const FitnessStrategy& fitness,
+                                  const TestString&      sequence,
+                                  const Spec&            spec,
+                                  Archive&               archive) const {
+    const auto existing = archive.find(sequence);
+    if (existing != archive.end()) {
+        return existing->second;
+    }
+
+    const double score = fitness.evaluate(sequence, spec);
+    archive.emplace(sequence, score);
+    return score;
+}
+
+void GeneticGenerator::clampLength(TestString& sequence, const Alphabet& alphabet) {
+    if (static_cast<int>(sequence.size()) > config.maxLength) {
+        sequence.resize(config.maxLength);
+    }
+
+    const int lastGene = static_cast<int>(alphabet.size()) - 1;
+    while (static_cast<int>(sequence.size()) < config.minLength) {
+        sequence.push_back(alphabet[rng.uniformInt(0, lastGene)]);
+    }
+}
+
+Population GeneticGenerator::fittest(const Population& population, int count) const {
+    Population ranked = population;
+
+    // Partial sort is enough: only the leading `count` need to be in order.
+    const int taken = min(count, static_cast<int>(ranked.size()));
+    partial_sort(ranked.begin(), ranked.begin() + taken, ranked.end(),
+                 [](const Individual& lhs, const Individual& rhs) {
+                     return lhs.fitness > rhs.fitness;
+                 });
+    ranked.resize(taken);
+    return ranked;
+}
+
+vector<Individual> GeneticGenerator::rankArchive(const Archive& archive, int topK) const {
+    vector<Individual> candidates;
     candidates.reserve(archive.size());
     for (const auto& entry : archive) {
         candidates.push_back(Individual{entry.first, entry.second});
     }
+
     sort(candidates.begin(), candidates.end(), [](const Individual& lhs, const Individual& rhs) {
         if (lhs.fitness != rhs.fitness) {
             return lhs.fitness > rhs.fitness;
@@ -194,13 +234,11 @@ GaResult GeneticGenerator::generate(const Spec& spec, int topK)
         }
         return lhs.sequence < rhs.sequence;
     });
+
     if (static_cast<int>(candidates.size()) > topK) {
         candidates.resize(topK);
     }
-
-    result.topK                        = std::move(candidates);
-    result.stats.distinctSequencesEvaluated = static_cast<int>(archive.size());
-    return result;
+    return candidates;
 }
 
 }  // namespace ga
